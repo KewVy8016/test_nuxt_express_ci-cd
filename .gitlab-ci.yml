@@ -1,8 +1,77 @@
-stages: [check]
-docker_access:
-  stage: check
-  tags: ["deploy"]     # ให้ตรงกับ tag ของ runner
-  image: docker:27.1.2-cli
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DOCKER_HOST: unix:///var/run/docker.sock
+  DOCKER_DRIVER: overlay2
+  REGISTRY: 192.168.254.131:5000
+
+# ================= BUILD =================
+build:
+  stage: build
+  image: docker:latest
   script:
-    - docker version
-    - docker info | head -n 30
+    - echo "🚀 Building backend image"
+    - docker build -t $REGISTRY/backend:latest ./backend
+    - echo "📤 Pushing backend image to local registry"
+    - docker push $REGISTRY/backend:latest
+    - echo "🚀 Building frontend image"
+    - docker build -t $REGISTRY/frontend:latest ./frontend
+    - echo "📤 Pushing frontend image to local registry"
+    - docker push $REGISTRY/frontend:latest
+
+# ================= TEST =================
+test:
+  stage: test
+  image: docker/compose:latest 
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_DRIVER: overlay2
+  script:
+    - echo "🧪 Running services for testing"
+    - docker-compose up -d db
+    
+    - echo "⏳ Waiting for DB to be healthy..."
+    - |
+      echo "Waiting for MySQL to be ready..."
+      for i in $(seq 1 30); do
+        if docker-compose exec -T db mysqladmin ping -uroot -prootpassword --silent; then
+          echo "✅ DB is ready!"
+          break
+        fi
+        echo "Attempt $i/30: DB not ready yet, waiting 3s..."
+        sleep 3
+      done
+    
+    - echo "🧪 Starting API service"
+    - docker-compose up -d api
+    - sleep 5
+    
+    - echo "🧪 Running backend tests inside API container"
+    - docker-compose exec -T api npm test
+    
+    - echo "🧪 Running frontend tests"
+    - docker-compose exec -T frontend npm run test 
+    
+    - echo "🧹 Cleaning up containers"
+    - docker-compose down -v 
+  
+  when: manual  # ⚠️ เพิ่มบรรทัดนี้ = ต้องกดเองถึงจะรัน test
+  allow_failure: true  # ⚠️ ถ้า test fail ก็ยังให้ deploy ต่อได้
+  only:
+    - merge_requests
+    - main
+
+# ================= DEPLOY =================
+deploy:
+  stage: deploy
+  image: docker/compose:latest
+  script:
+    - echo "📦 Pull latest images from local registry"
+    - docker-compose pull
+    - echo "🚀 Deploying containers"
+    - docker-compose up -d
+  only:
+    - main
