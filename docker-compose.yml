@@ -1,36 +1,37 @@
-version: "3.9"
+version: "3.7"
 
 services:
   db:
-      image: mysql:8.0
-      command: >
-        --character-set-server=utf8mb4
-        --collation-server=utf8mb4_unicode_ci
-      ports:
-      - "3306:3306"    # เปิดพอร์ต MySQL ออกมาหา host
-      environment:
-        MYSQL_ROOT_PASSWORD: rootpassword
-        MYSQL_DATABASE: skills_db
-        MYSQL_USER: user1
-        MYSQL_PASSWORD: user1_1234
-        TZ: Asia/Bangkok
-      volumes:
-        - db_data:/var/lib/mysql
-        - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-        
-      healthcheck:
-        test: ["CMD","mysqladmin","ping","-proot_password"]
-        interval: 10s
-        timeout: 5s
-        retries: 10
-      networks: [fsnet]
+    image: mysql:8.0
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    environment:
+      # ใช้ค่าคงที่ทั้งหมด
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: skills_db
+      MYSQL_USER: user1
+      MYSQL_PASSWORD: user1_1234
+      TZ: Asia/Bangkok
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      # ใช้ค่าคงที่ในการเช็ค health
+      test: ["CMD","mysqladmin","ping","-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [fsnet]
 
   phpmyadmin:
     image: phpmyadmin:latest
     environment:
       PMA_HOST: db
       PMA_USER: root
-      PMA_PASSWORD: rootpassword
+      PMA_PASSWORD: rootpassword # ใช้ค่าคงที่
     ports:
       - "8080:80"
     depends_on:
@@ -38,36 +39,35 @@ services:
     networks: [fsnet]
 
   api:
-    build: ./backend
-    
+    # ✅ ใช้ image: เพื่อดึงจาก Registry ค่า registry กำนหนดใน gitlab variables ip:port
+    image: ${REGISTRY}/backend:latest 
     ports:
       - "7000:7000"
     environment:
-      # Ensure backend connects to the DB service when running in Docker
+      # ใช้ค่าคงที่ทั้งหมด
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: user1
       DB_PASS: user1_1234
       DB_NAME: skills_db
-      # JWT secret used by backend to sign tokens. Replace with a secure random value in production.
       JWT_SECRET: "change_me_to_a_secure_random_value"
       JWT_EXPIRES: "1h"
-    depends_on:
-      db:
-        condition: service_started
+      # CORS_ORIGIN: http://localhost:3000 # ค่าคงที่สำหรับ Dev/Test
+    # ✅ แก้ไขเป็น Short Syntax สำหรับ depends_on
+    depends_on: 
+      - db 
     networks: [fsnet]
     volumes:
       - ./backend/uploads:/app/uploads
 
   frontend:
-    build: ./frontend
+    # ✅ ใช้ image: เพื่อดึงจาก Registry
+    image: ${REGISTRY}/frontend:latest 
     environment:
-      NUXT_PUBLIC_API_BASE: http://192.168.129:7000
+      NUXT_PUBLIC_API_BASE: http://192.168.254.129:7000
       NITRO_PORT: 3000
-
     ports:
       - "3000:3000"
-     
     depends_on:
       - api
     networks: [fsnet]
