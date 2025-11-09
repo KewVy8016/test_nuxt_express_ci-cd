@@ -8,6 +8,6 @@ COPY . .
 # the client (browser) to try to resolve http://api:7000 which fails (ERR_NAME_NOT_RESOLVED).
 # Set the public API base to localhost so the browser can reach the backend port
 # published on the host.
-ENV NUXT_PUBLIC_API_BASE=http://api:7000
+# ENV NUXT_PUBLIC_API_BASE=http://api:7000
 EXPOSE 3000
 CMD ["npm","run","dev"]

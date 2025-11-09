@@ -62,9 +62,9 @@ services:
   frontend:
     build: ./frontend
     environment:
-      
+      NUXT_PUBLIC_API_BASE: http://192.168.129:7000
       NITRO_PORT: 3000
-      
+
     ports:
       - "3000:3000"
      
